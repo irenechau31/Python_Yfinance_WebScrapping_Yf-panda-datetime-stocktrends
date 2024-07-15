@@ -133,12 +133,60 @@ for i in stocks:
 
 # creating Renko data
 renko_data={}
-df=entire_data
-def Renko(DF, hourly_df):
+def renko(DF, hourly_df):
     df=DF.copy()
     df.drop('Close', axis=1, inplace=True) #axis 1 -> delete column
     df.reset_index(inplace=True) #inplace is to make the change to original dataframe, not just create a copy
     df.columns = ['date', 'open','high','low','close','volumn'] #change to name of columns
     df2=Renko(df)
-    return df2
+    df2.brick_size=3*round(ATR(hourly_df,120).iloc[-1],0) #return the last value of the ATR function
+    renko_df=df2.get_entire_data()
+    return renko_df
+
+for i in entire_data:
+    renko_data[i]=renko(entire_data[i],hour_data[i])
+
+#PERFORMANCE MEASUREMENT/ KPIs
+
+def CAGR(DF): # expected return
+    df=DF.copy()
+    df=entire_data['AMZN'].copy()
+    df['return']=df['Adj Close'].pct_change()
+    df['cum_return']=(1+df['return']).cumprod()
+    n=len(df)/252
+    #Last value of the series of cum_return -> [-1]
+    CAGR =(df['cum_return'][-1])**(1/n)-1
+    return CAGR
+
+for i in stocks:
+    print('CAGR for{}={}'.format(i,CAGR(entire_data[i])))
+def volatility(DF): #Standard deviation
+    df=DF.copy()
+    df=entire_data['AMZN'].copy()
+    df['return']=df['Adj Close'].pct_change()
+    vol=df['return'].std()*np.sqrt(252)
+    return vol
+
+for i in entire_data:
+    print('Volatility of {} = {}'.format(i,volatility(entire_data[i])))
+
+def sharpe(DF, rf):
+    df=DF.copy()
+    sharpe = (CAGR(df) - rf)/volatility(df)
+    return sharpe
+
+def sortino(DF, rf):
+    df=DF.copy()
+    df['return']=df['Adj Close'].pct_change()
+    neg_return = np.where(df['return']>0,0,df['return'])
+
+#neg_return[neg_return!=0] choose negative return not equal to 0
+# function was Numpy series, and has NaN value -> convert to Pandas
+#convert this numpy function (neg_return[neg_return!=0].std()) to pandas by adding pd.Series(..).std()
+    neg_volatility = pd.Series(neg_return[neg_return!=0]).std()*np.sqrt(252)
+    return  (CAGR(df) - rf)/neg_volatility
+
+for i in entire_data:
+    print('Sharpe for {} = {}'.format(i,sharpe(entire_data[i],0.03)))
+    print('Sortino for {} = {}'.format(i,sortino(entire_data[i],0.03)))
 
